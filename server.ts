@@ -12,67 +12,81 @@ async function startServer() {
 
   app.use(express.json());
 
-  // In-memory store simulating MySQL custom tables for this demo
+  // In-memory store simulating WPDB and Custom Post Types
+  const wordpressPlugins = [
+    { name: "WooCommerce", slug: "woocommerce", version: "8.5.0", status: "active" },
+    { name: "Yoast SEO", slug: "wordpress-seo", version: "22.0", status: "active" },
+    { name: "Elementor", slug: "elementor", version: "3.19.0", status: "active" },
+    { name: "Contact Form 7", slug: "contact-form-7", version: "5.8.7", status: "active" },
+    { name: "Jetpack", slug: "jetpack", version: "13.0", status: "inactive" }
+  ];
+
   const testResults: any[] = [
     {
-      id: "st-001",
-      pluginName: "WooCommerce",
-      status: "completed",
-      startTime: Date.now() - 3600000,
-      endTime: Date.now() - 1800000,
-      loadConfig: { users: 50, duration: 30, pattern: "ramp-up" },
-      metrics: {
-        avgCpu: 42,
-        peakMemory: 512,
-        avgQueryTime: 12,
-        latency: 185
-      },
-      timeseries: Array.from({ length: 20 }, (_, i) => ({
-        time: i * 5,
-        cpu: 20 + Math.random() * 40,
-        memory: 128 + Math.random() * 256,
-        queries: 5 + Math.random() * 10
-      }))
+      id: "742", // Simulating a WP Post ID
+      post_title: "WooCommerce Stress Test",
+      post_status: "publish",
+      post_date: new Date(Date.now() - 3600000).toISOString(),
+      meta: {
+        plugin_slug: "woocommerce",
+        status: "completed",
+        load_config: { users: 50, duration: 60, pattern: "ramp-up" },
+        metrics: { avgCpu: 42.5, peakMemory: 512, avgQueryTime: 12.4, latency: 185 },
+        timeseries: Array.from({ length: 20 }, (_, i) => ({
+          time: i * 5,
+          cpu: 20 + Math.random() * 40,
+          memory: 128 + Math.random() * 256,
+          queries: 5 + Math.random() * 10
+        }))
+      }
     }
   ];
 
   // API Routes
+  app.get("/api/wp/plugins", (req, res) => {
+    res.json(wordpressPlugins.filter(p => p.status === "active"));
+  });
+
   app.get("/api/tests", (req, res) => {
     res.json(testResults);
   });
 
   app.get("/api/tests/:id", (req, res) => {
     const test = testResults.find(t => t.id === req.params.id);
-    if (!test) return res.status(404).json({ error: "Test not found" });
+    if (!test) return res.status(404).json({ error: "Post not found" });
     res.json(test);
   });
 
   app.post("/api/tests/start", (req, res) => {
-    const { pluginName, users, duration, pattern } = req.body;
+    const { pluginSlug, pluginName, users, duration, pattern } = req.body;
+    const postId = Math.floor(Math.random() * 1000).toString();
     const newTest = {
-      id: `st-${Math.random().toString(36).substr(2, 5)}`,
-      pluginName,
-      status: "running",
-      startTime: Date.now(),
-      loadConfig: { users, duration, pattern },
-      metrics: { avgCpu: 0, peakMemory: 0, avgQueryTime: 0, latency: 0 },
-      timeseries: []
+      id: postId,
+      post_title: `${pluginName} Stress Test`,
+      post_status: "publish",
+      post_date: new Date().toISOString(),
+      meta: {
+        plugin_slug: pluginSlug,
+        status: "running",
+        load_config: { users, duration, pattern },
+        metrics: { avgCpu: 0, peakMemory: 0, avgQueryTime: 0, latency: 0 },
+        timeseries: []
+      }
     };
     testResults.unshift(newTest);
     
-    // Simulate test completion after a delay
+    // Simulate background processing (WP Cron style)
     setTimeout(() => {
-      const test = testResults.find(t => t.id === newTest.id);
+      const test = testResults.find(t => t.id === postId);
       if (test) {
-        test.status = "completed";
-        test.endTime = Date.now();
-        test.metrics = {
-          avgCpu: 30 + Math.random() * 50,
-          peakMemory: 256 + Math.random() * 512,
-          avgQueryTime: 5 + Math.random() * 20,
-          latency: 100 + Math.random() * 400
+        test.meta.status = "completed";
+        test.meta.metrics = {
+          avgCpu: 35 + Math.random() * 45,
+          peakMemory: 128 + Math.random() * 400,
+          avgQueryTime: 8 + Math.random() * 15,
+          latency: 120 + Math.random() * 300
         };
-        test.timeseries = Array.from({ length: 20 }, (_, i) => ({
+        test.meta.timeseries = Array.from({ length: 20 }, (_, i) => ({
           time: i * 5,
           cpu: 20 + Math.random() * 60,
           memory: 200 + Math.random() * 300,
