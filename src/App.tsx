@@ -142,10 +142,11 @@ const MetricCard = ({ title, value, unit, icon: Icon, subtext, subColor }: any) 
 
 const TestForm = ({ onStart }: { onStart: (data: any) => void }) => {
   const [plugins, setPlugins] = useState<WPPlugin[]>([]);
-  const [selectedSlug, setSelectedSlug] = useState('');
-  const [users, setUsers] = useState(10);
+  const [selectedSlug, setSelectedSlug] = useState('ai-post-scheduler');
+  const [users, setUsers] = useState(50);
   const [duration, setDuration] = useState(60);
-  const [pattern, setPattern] = useState<'constant' | 'ramp-up' | 'spike'>('constant');
+  const [operationType, setOperationType] = useState('template-scheduling');
+  const [pattern, setPattern] = useState<'constant' | 'ramp-up' | 'spike' | 'batch'>('constant');
 
   useEffect(() => {
     fetch('/api/wp/plugins').then(res => res.json()).then(setPlugins);
@@ -159,7 +160,10 @@ const TestForm = ({ onStart }: { onStart: (data: any) => void }) => {
       pluginName: plugin.name, 
       users, 
       duration, 
-      pattern 
+      pattern,
+      meta: {
+        operationType
+      }
     });
   };
 
@@ -183,13 +187,45 @@ const TestForm = ({ onStart }: { onStart: (data: any) => void }) => {
             ))}
           </select>
         </div>
+
+        {selectedSlug === 'ai-post-scheduler' && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="p-3 bg-blue-50/50 rounded-lg border border-blue-100"
+          >
+            <label className="text-[9px] font-bold text-blue-600 uppercase mb-2 block tracking-widest">Operation Focus (AI Scheduler)</label>
+            <div className="space-y-1.5">
+              {[
+                { id: 'template-scheduling', label: 'Template Rule Mapping', icon: Clock },
+                { id: 'batch-ai-gen', label: 'AI Content Generation', icon: Cpu },
+                { id: 'batch-burst', label: 'Batch Burst Simulation', icon: HardDrive },
+                { id: 'deadlock-test', label: 'Deadlock Concurrency', icon: AlertTriangle },
+                { id: 'cron-dispatch', label: 'Cron Trigger Stability', icon: Activity }
+              ].map(op => (
+                <button
+                  key={op.id}
+                  onClick={() => setOperationType(op.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold transition-all ${
+                    operationType === op.id ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-white text-slate-600 hover:bg-white/80'
+                  }`}
+                >
+                  <op.icon size={12} />
+                  {op.label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         <div>
           <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block tracking-widest">Traffic Pattern</label>
           <div className="grid grid-cols-2 gap-2">
             {[
               { id: 'constant', label: 'Steady' },
               { id: 'ramp-up', label: 'Ramp Up' },
-              { id: 'spike', label: 'Spike' }
+              { id: 'spike', label: 'Spike' },
+              { id: 'batch', label: 'Batch Processing' }
             ].map((p) => (
               <button
                 key={p.id}
@@ -377,7 +413,7 @@ add_action('init', function() {
       <div className="flex items-center justify-between">
         <div className="max-w-2xl">
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">WordPress Implementation</h2>
-          <p className="text-slate-500 mt-1 font-medium">This generated agent code registers the `wp_stress_test` Custom Post Type and handles real-time telemetry capture via the WPDB query filters.</p>
+          <p className="text-slate-500 mt-1 font-medium">This generated agent code registers the `wp_stress_test` Custom Post Type and handles real-time telemetry capture. Specifically optimized for monitoring high-frequency hooks used by <b>AI Post Scheduler</b>.</p>
         </div>
         <button 
           onClick={() => navigator.clipboard.writeText(code)}
@@ -506,7 +542,12 @@ export default function App() {
                             >
                               <div className="min-w-0">
                                 <div className="text-sm font-bold text-slate-800 truncate">{t.post_title}</div>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">#{t.id} • {new Date(t.post_date).toLocaleDateString()}</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">#{t.id} • {new Date(t.post_date).toLocaleDateString()}</div>
+                                  {t.meta.operation_type && (
+                                    <span className="text-[8px] font-bold px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 uppercase">{t.meta.operation_type.replace('-', ' ')}</span>
+                                  )}
+                                </div>
                               </div>
                               <span className={`flex-shrink-0 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase ${t.meta.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700 animate-pulse'}`}>
                                 {t.meta.status}
@@ -576,7 +617,12 @@ export default function App() {
                             <td className="px-6 py-4 text-xs font-mono text-slate-400 font-bold">#{t.id}</td>
                             <td className="px-6 py-4">
                               <div className="text-sm font-bold text-slate-800">{t.post_title.replace(' Stress Test', '')}</div>
-                              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Recorded {new Date(t.post_date).toLocaleDateString()}</div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Recorded {new Date(t.post_date).toLocaleDateString()}</div>
+                                {t.meta.operation_type && (
+                                  <span className="text-[8px] font-black px-1.5 py-0.5 bg-blue-100/50 text-blue-600 rounded uppercase tracking-widest leading-none">{t.meta.operation_type.replace('-', ' ')}</span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-4">
                               <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg uppercase tracking-widest border border-blue-100">{t.meta.load_config.pattern}</span>

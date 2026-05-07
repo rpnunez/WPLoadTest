@@ -14,6 +14,7 @@ async function startServer() {
 
   // In-memory store simulating WPDB and Custom Post Types
   const wordpressPlugins = [
+    { name: "AI Post Scheduler", slug: "ai-post-scheduler", version: "2.1.4", status: "active" },
     { name: "WooCommerce", slug: "woocommerce", version: "8.5.0", status: "active" },
     { name: "Yoast SEO", slug: "wordpress-seo", version: "22.0", status: "active" },
     { name: "Elementor", slug: "elementor", version: "3.19.0", status: "active" },
@@ -58,8 +59,10 @@ async function startServer() {
   });
 
   app.post("/api/tests/start", (req, res) => {
-    const { pluginSlug, pluginName, users, duration, pattern } = req.body;
+    const { pluginSlug, pluginName, users, duration, pattern, meta: requestMeta } = req.body;
     const postId = Math.floor(Math.random() * 1000).toString();
+    const opType = requestMeta?.operationType || 'general';
+
     const newTest = {
       id: postId,
       post_title: `${pluginName} Stress Test`,
@@ -69,6 +72,7 @@ async function startServer() {
         plugin_slug: pluginSlug,
         status: "running",
         load_config: { users, duration, pattern },
+        operation_type: opType,
         metrics: { avgCpu: 0, peakMemory: 0, avgQueryTime: 0, latency: 0 },
         timeseries: []
       }
@@ -79,18 +83,43 @@ async function startServer() {
     setTimeout(() => {
       const test = testResults.find(t => t.id === postId);
       if (test) {
+        let cpuBase = 35, memBase = 128, queryBase = 8, latencyBase = 120;
+        
+        // Target adjustments for AI Post Scheduler
+        if (pluginSlug === 'ai-post-scheduler') {
+          if (opType === 'template-scheduling') {
+            cpuBase = 65; // Rule mapping is CPU intensive
+            latencyBase = 250;
+          } else if (opType === 'batch-ai-gen') {
+            memBase = 600; // AI generation is memory heavy
+            cpuBase = 80;
+          } else if (opType === 'cron-dispatch') {
+            latencyBase = 400; // Background tasks have higher jitter
+            queryBase = 25;
+          } else if (opType === 'batch-burst') {
+            cpuBase = 85; 
+            memBase = 800; // Burst mode consumes significant RAM
+            queryBase = 15;
+            latencyBase = 300;
+          } else if (opType === 'deadlock-test') {
+            cpuBase = 40; 
+            queryBase = 120; // Excessive queries simulating locking
+            latencyBase = 1200; // Simulating wait states/timeouts
+          }
+        }
+
         test.meta.status = "completed";
         test.meta.metrics = {
-          avgCpu: 35 + Math.random() * 45,
-          peakMemory: 128 + Math.random() * 400,
-          avgQueryTime: 8 + Math.random() * 15,
-          latency: 120 + Math.random() * 300
+          avgCpu: cpuBase + Math.random() * 20,
+          peakMemory: memBase + Math.random() * 200,
+          avgQueryTime: queryBase + Math.random() * 10,
+          latency: latencyBase + Math.random() * 200
         };
         test.meta.timeseries = Array.from({ length: 20 }, (_, i) => ({
           time: i * 5,
-          cpu: 20 + Math.random() * 60,
-          memory: 200 + Math.random() * 300,
-          queries: 10 + Math.random() * 30
+          cpu: cpuBase - 10 + Math.random() * 30,
+          memory: memBase - 50 + Math.random() * 100,
+          queries: queryBase - 5 + Math.random() * 15
         }));
       }
     }, 5000);
