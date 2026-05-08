@@ -12,6 +12,14 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Request logging
+  app.use((req, res, next) => {
+    if (req.url.startsWith('/api')) {
+      console.log(`[API Request] ${req.method} ${req.url}`);
+    }
+    next();
+  });
+
   // In-memory store simulating WPDB and Custom Post Types
   const wordpressPlugins = [
     { name: "AI Post Scheduler", slug: "ai-post-scheduler", version: "2.1.4", status: "active" },
@@ -127,6 +135,11 @@ async function startServer() {
     res.json(newTest);
   });
 
+  // API 404 handler to prevent HTML fallthrough
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -147,4 +160,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Critical server startup error:", err);
+  process.exit(1);
+});

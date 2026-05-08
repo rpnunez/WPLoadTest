@@ -149,7 +149,13 @@ const TestForm = ({ onStart }: { onStart: (data: any) => void }) => {
   const [pattern, setPattern] = useState<'constant' | 'ramp-up' | 'spike' | 'batch'>('constant');
 
   useEffect(() => {
-    fetch('/api/wp/plugins').then(res => res.json()).then(setPlugins);
+    fetch('/api/wp/plugins')
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then(setPlugins)
+      .catch(e => console.error('Error fetching plugins:', e));
   }, []);
 
   const handleStart = () => {
@@ -464,10 +470,17 @@ export default function App() {
   const fetchTests = async () => {
     try {
       const res = await fetch('/api/tests');
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`Fetch tests failed: ${res.status} ${res.statusText}`, text);
+        return;
+      }
       const data = await res.json();
       setTests(data);
       if (data.length > 0 && !selectedTest) setSelectedTest(data[0]);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error('Fetch tests network error:', e);
+    }
   };
 
   useEffect(() => {
@@ -483,11 +496,18 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
       });
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`Start test failed: ${res.status} ${res.statusText}`, text);
+        return;
+      }
       const newTest = await res.json();
       setTests([newTest, ...tests]);
       setSelectedTest(newTest);
       setActiveTab('dashboard');
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error('Start test network error:', e);
+    }
   };
 
   return (
